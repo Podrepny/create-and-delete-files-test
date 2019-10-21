@@ -1,5 +1,6 @@
 #!/bin/bash
 # Plenty file deletion performance test
+# Some test can show - No such file or directory - it's ok
 # set -x
 
 VARSBEFORE=`compgen -v`
@@ -178,7 +179,6 @@ for array in ${!ArrayOfTest[@]}; do
     
     if [ ${VERBOSE} = true ]; then
         time "${ArrayOfTest[${array}]}"
-        ls -f ${MOUNT_PATH}
         df -i ${MOUNT_PATH}
     else
         time "#${ArrayOfTest[${array}]}" > /dev/null 2>&1

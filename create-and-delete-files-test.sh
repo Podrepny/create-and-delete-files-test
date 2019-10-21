@@ -12,31 +12,40 @@ INODES_NUM=10000000
 NUM_FILES=1000
 EXITCODE=0
 VERBOSE=true
+TEMPDIR=/tmp/empty
 # DISCRETENESS=1000
+declare -a ARRAYOFTEST
+ARRAYOFTEST=( "time ls ${MOUNT_PATH} | tail -n 0 > /dev/null 2>&1" "time ls -f ${MOUNT_PATH} | tail -n 0 > /dev/null 2>&1" "time rm -rf ${MOUNT_PATH}/ > /dev/null 2>&1" "time rm -rf ${MOUNT_PATH}/* > /dev/null 2>&1" "time find ${MOUNT_PATH}/ -type f -exec rm -v {} \; > /dev/null 2>&1" "time find ${MOUNT_PATH}/ -type f -delete > /dev/null 2>&1" "time cd ${MOUNT_PATH}/ ; ls -f . | xargs -n 100 rm > /dev/null 2>&1" "mkdir -p ${TEMPDIR}; rsync -a --delete /tmp/empty/ /test/; rm -rf ${TEMPDIR}" )
+VARSIGNORED="VARSIGNORED\|PIPESTATUS\|VARSBEFORE\|VARSAFTER\|ARRAYOFTEST"
 
 VARSAFTER=`compgen -v`
 
-
-# Check if parameters are not empty
-VARSUSED=`comm -13 <(echo $VARSBEFORE | tr ' ' '\n' | grep -v "EXITCODE\|PIPESTATUS\|VARSBEFORE\|VARSAFTER" | sort) <(echo $VARSAFTER | tr ' ' '\n' | grep -v "EXITCODE\|PIPESTATUS\|VARSBEFORE\|VARSAFTER" | sort)`
+# Compose list variable for check. Exclude environment vars and array
+VARSUSED=`comm -13 <(echo $VARSBEFORE | tr ' ' '\n' | grep -v "${VARSIGNORED}" | sort) <(echo $VARSAFTER | tr ' ' '\n' | grep -v "${VARSIGNORED}" | sort)`
 
 function FN_VARS_CHECK() {
     # Check list of variables for empty values
-    # Param1 = list of variables for check
-    # Param2 = list of variables to exclude from checking
     # EXITCODE=1 if at least one of variable is empty in the check list 
     # Print list of checked variables
-    
-    EXITCODE=0
-    
     for i in $VARSUSED; do
         if [ -z `eval echo "\\${$i}"` ]; then
-            echo -e "\e[31m ERROR Parameter\e[33m ${i} \e[31mnot_defined = `eval echo "\\${$i}"`\e[0m" | cut -c 1-80
+            echo -e "\e[31m\tERROR Parameter\e[33m ${i} \e[31mnot_defined = `eval echo "\\${$i}"`\e[0m" | cut -c 1-80
             EXITCODE=1
         else
-            echo -e "\e[32m OK Parameter\e[36m ${i} \e[32mdefined = `eval echo "\\${$i}"`\e[0m" | cut -c 1-80
+            echo -e "\e[32m\tOK Parameter\e[36m ${i} \e[32mdefined = `eval echo "\\${$i}"`\e[0m" | cut -c 1-80
         fi
     done
+}
+
+function FN_ARRAY_CHECK() {
+    # Check array for empty values
+    # EXITCODE=1 if at least one of variable is empty in the check list 
+    if [ ${#ARRAYOFTEST[*]} = 0 ]; then
+        echo -e "\e[31m\tArray of test is empty\e[0m"
+        EXITCODE=1
+    else
+        echo -e "\e[32m\tArray of test contains items\e[36m ${#ARRAYOFTEST[*]} \e[0m"
+    fi
 }
 
 function FN_DECORATE {
@@ -55,7 +64,8 @@ function FN_CREATE_FILES {
             touch ${MOUNT_PATH}/$i.file
             if [[ $((i % 1000)) = 0 ]]; then
                 progress=$(echo "scale=3; ${i}/${NUM_FILES}*100" | bc)
-                echo -ne "\e[?25l\e[s\e[2K${progress}% complete (files $i of ${NUM_FILES})\e[u"
+                echo -ne "\e[?25l\r${progress}% complete (files $i of ${NUM_FILES})"
+                # echo -ne "\e[?25l\e[s\e[2K${progress}% complete (files $i of ${NUM_FILES})\e[u"
                 # echo -ne "\e[?25l\e[s\e[2K$i of ${NUM_FILES}\e[u"
             fi
         done
@@ -66,7 +76,8 @@ function FN_CREATE_FILES {
             touch ${MOUNT_PATH}/$i.file
         done
     fi
-    sh -c 'sync && echo 2 > /proc/sys/vm/drop_caches' 
+    echo -e "\e[?25h"
+    sh -c 'sync && echo 2 > /proc/sys/vm/drop_caches'
 }
 
 function FN_MOUNT_DISK {
@@ -155,6 +166,7 @@ echo -e "\n\n\n\tVariable check:"
 FN_DECORATE
 FN_VARS_CHECK | column -t
 FN_VARS_CHECK &> /dev/null
+FN_ARRAY_CHECK
 
 # If FN_VARS_CHECK generate $EXITCODE = 1, exit 1
 if [ $EXITCODE = 1 ]; then
@@ -164,9 +176,7 @@ fi
 
 # ----------------------------------------
 # Run tests
-ArrayOfTest=("time ls ${MOUNT_PATH} | tail -n 0 > /dev/null 2>&1" "time ls -f ${MOUNT_PATH} | tail -n 0 > /dev/null 2>&1" "time rm -rf ${MOUNT_PATH}/" "time rm -rf ${MOUNT_PATH}/*" "time find ${MOUNT_PATH}/ -type f -exec rm -v {} \;" "time find ${MOUNT_PATH}/ -type f -delete" "time cd ${MOUNT_PATH}/ ; ls -f . | xargs -n 100 rm")
-
-for array in ${!ArrayOfTest[@]}; do
+for array in ${!ARRAYOFTEST[@]}; do
     if [ ${VERBOSE} = true ]; then
         FN_DECORATE
         FN_PREPS_FN
@@ -174,14 +184,14 @@ for array in ${!ArrayOfTest[@]}; do
         FN_PREPS_FN > /dev/null 2>&1
     fi
     sh -c 'sync && echo 2 > /proc/sys/vm/drop_caches'
-    echo -e "\e[32m\n\tTest = ${array} of ${#ArrayOfTest[*]}\e[0m"
-    echo -e "\e[33m\tExecution time for command:\e[36m ${ArrayOfTest[${array}]} \e[0m"
+    echo -e "\e[30;42m\n\t Test = ${array} of ${#ARRAYOFTEST[*]} \e[0m"
+    echo -e "\e[33m\tExecution time for command:\e[36m ${ARRAYOFTEST[${array}]} \e[0m"
     
     if [ ${VERBOSE} = true ]; then
-        time "${ArrayOfTest[${array}]}"
+        time "${ARRAYOFTEST[${array}]}"
         df -i ${MOUNT_PATH}
     else
-        time "#${ArrayOfTest[${array}]}" > /dev/null 2>&1
+        time "#${ARRAYOFTEST[${array}]}" > /dev/null 2>&1
     fi
 done
 

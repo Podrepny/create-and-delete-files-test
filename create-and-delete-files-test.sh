@@ -162,12 +162,8 @@ if [ $EXITCODE = 1 ]; then
 fi
 
 # ----------------------------------------
-# Run all prepare function
-FN_PREPS_FN
-
-# ----------------------------------------
 # Run tests
-ArrayOfTest=("time ls ${MOUNT_PATH} | tail -n 0" "time ls -f ${MOUNT_PATH} | tail -n 0" "time rm -rf ${MOUNT_PATH}/" "time rm -rf ${MOUNT_PATH}/*" "time find ${MOUNT_PATH}/ -type f -exec rm -v {} \;" "time find ${MOUNT_PATH}/ -type f -delete" "time cd ${MOUNT_PATH}/ ; ls -f . | xargs -n 100 rm")
+ArrayOfTest=("time ls ${MOUNT_PATH} | tail -n 0 > /dev/null 2>&1" "time ls -f ${MOUNT_PATH} | tail -n 0 > /dev/null 2>&1" "time rm -rf ${MOUNT_PATH}/" "time rm -rf ${MOUNT_PATH}/*" "time find ${MOUNT_PATH}/ -type f -exec rm -v {} \;" "time find ${MOUNT_PATH}/ -type f -delete" "time cd ${MOUNT_PATH}/ ; ls -f . | xargs -n 100 rm")
 
 for array in ${!ArrayOfTest[@]}; do
     if [ ${VERBOSE} = true ]; then

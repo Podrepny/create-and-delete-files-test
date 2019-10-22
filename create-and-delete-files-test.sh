@@ -9,14 +9,13 @@ DISK_PATH="/dev/sdb1"
 MOUNT_PATH="/test"
 DISK_SIZE=$(fdisk -l ${DISK_PATH} | head -n 1 | tr -s ' ' | cut -d ' ' -f 5)
 INODES_NUM=10000000
-NUM_FILES=100
+NUM_FILES=100000
 EXITCODE=0
 VERBOSE=true
 TEMPDIR=/tmp/empty
 # DISCRETENESS=1000
 declare -a ARRAYOFTEST
-# ARRAYOFTEST=( test_rm1 test_rm2 test_find1 test_find2 test_rsync test_ls1 test_ls2 )
-ARRAYOFTEST=( test_ls2 )
+ARRAYOFTEST=( test_rm1 test_rm2 test_find1 test_find2 test_rsync test_ls1 test_ls2 )
 VARSIGNORED="VARSIGNORED\|PIPESTATUS\|VARSBEFORE\|VARSAFTER\|ARRAYOFTEST"
 
 VARSAFTER=`compgen -v`
@@ -192,6 +191,7 @@ for array in ${!ARRAYOFTEST[@]}; do
     echo -e "\n\n"
 done
 FN_DECORATE
+
 echo -e "\e[32m\n\tAll tests complete\e[0m\n\n"
 
 exit 0

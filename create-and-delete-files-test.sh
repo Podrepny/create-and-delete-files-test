@@ -15,9 +15,8 @@ VERBOSE=true
 TEMPDIR=/tmp/empty
 # DISCRETENESS=1000
 declare -a ARRAYOFTEST
-# ARRAYOFTEST=( "ls ${MOUNT_PATH} | wc -l" "ls -f ${MOUNT_PATH} | wc -l" "rm -rf ${MOUNT_PATH}/" "rm -rf ${MOUNT_PATH}/*" "find ${MOUNT_PATH}/ -type f -exec rm -v {} \;" "find ${MOUNT_PATH}/ -type f -delete" "cd ${MOUNT_PATH}/ ; ls -f . | xargs -n 100 rm" "mkdir -p ${TEMPDIR}/; rsync -a --delete ${TEMPDIR}/ ${MOUNT_PATH}/; rm -rf ${TEMPDIR}" )
-# ARRAYOFTEST=( test_rm1 test_rm2 test_find1 test_find2 test_xarg test_rsync test_ls1 test_ls2 )
-ARRAYOFTEST=( test_rm1 test_rm2 test_find1 test_find2 test_rsync test_ls1 test_ls2 )
+# ARRAYOFTEST=( test_rm1 test_rm2 test_find1 test_find2 test_rsync test_ls1 test_ls2 )
+ARRAYOFTEST=( test_ls2 )
 VARSIGNORED="VARSIGNORED\|PIPESTATUS\|VARSBEFORE\|VARSAFTER\|ARRAYOFTEST"
 
 VARSAFTER=`compgen -v`
@@ -84,7 +83,7 @@ function FN_CREATE_FILES {
 
 function FN_MOUNT_DISK {
     if $(mountpoint -q ${MOUNT_PATH}); then
-        echo -e "\e[31m\tDevice \e[36m ${DISK_PATH} \e[31m already mounted\e[0m"
+        echo -e "\e[31m\tDevice\e[36m ${DISK_PATH} \e[31malready mounted\e[0m"
         echo -e "\e[32m\tUn mount a\e[36m ${DISK_PATH} \e[0m"
         umount ${MOUNT_PATH}
     fi
@@ -106,7 +105,7 @@ function FN_CREATE_FS_EXT4 {
 
 function FN_WIPE_DISK {
     if [ ${VERBOSE} = true ]; then
-        echo -e "\e[32m\tWipe\e[36m ${DISK_PATH} \e[32mwith zeros... \e[0m"
+        echo -e "\e[31m\tWipe\e[36m ${DISK_PATH} \e[32mwith zeros... \e[0m"
         dd if=/dev/zero of=${DISK_PATH} bs=$((1024*1024)) count=$((${DISK_SIZE}/$((1024*1024)))) status=progress
         echo -e "\e[32m\tWipe completed\e[0m"
     else
@@ -192,8 +191,7 @@ for array in ${!ARRAYOFTEST[@]}; do
     df -i ${MOUNT_PATH}
     echo -e "\n\n"
 done
-
 FN_DECORATE
-echo -e "\e[32m\n\tAll tests complete\e[0m"
+echo -e "\e[32m\n\tAll tests complete\e[0m\n\n"
 
 exit 0

@@ -9,13 +9,15 @@ DISK_PATH="/dev/sdb1"
 MOUNT_PATH="/test"
 DISK_SIZE=$(fdisk -l ${DISK_PATH} | head -n 1 | tr -s ' ' | cut -d ' ' -f 5)
 INODES_NUM=10000000
-NUM_FILES=1000
+NUM_FILES=100
 EXITCODE=0
 VERBOSE=true
 TEMPDIR=/tmp/empty
 # DISCRETENESS=1000
 declare -a ARRAYOFTEST
-ARRAYOFTEST=( "time ls ${MOUNT_PATH} | tail -n 0 > /dev/null 2>&1" "time ls -f ${MOUNT_PATH} | tail -n 0 > /dev/null 2>&1" "time rm -rf ${MOUNT_PATH}/ > /dev/null 2>&1" "time rm -rf ${MOUNT_PATH}/* > /dev/null 2>&1" "time find ${MOUNT_PATH}/ -type f -exec rm -v {} \; > /dev/null 2>&1" "time find ${MOUNT_PATH}/ -type f -delete > /dev/null 2>&1" "time cd ${MOUNT_PATH}/ ; ls -f . | xargs -n 100 rm > /dev/null 2>&1" "mkdir -p ${TEMPDIR}; rsync -a --delete /tmp/empty/ /test/; rm -rf ${TEMPDIR}" )
+# ARRAYOFTEST=( "ls ${MOUNT_PATH} | wc -l" "ls -f ${MOUNT_PATH} | wc -l" "rm -rf ${MOUNT_PATH}/" "rm -rf ${MOUNT_PATH}/*" "find ${MOUNT_PATH}/ -type f -exec rm -v {} \;" "find ${MOUNT_PATH}/ -type f -delete" "cd ${MOUNT_PATH}/ ; ls -f . | xargs -n 100 rm" "mkdir -p ${TEMPDIR}/; rsync -a --delete ${TEMPDIR}/ ${MOUNT_PATH}/; rm -rf ${TEMPDIR}" )
+# ARRAYOFTEST=( test_rm1 test_rm2 test_find1 test_find2 test_xarg test_rsync test_ls1 test_ls2 )
+ARRAYOFTEST=( test_rm1 test_rm2 test_find1 test_find2 test_rsync test_ls1 test_ls2 )
 VARSIGNORED="VARSIGNORED\|PIPESTATUS\|VARSBEFORE\|VARSAFTER\|ARRAYOFTEST"
 
 VARSAFTER=`compgen -v`
@@ -41,16 +43,16 @@ function FN_ARRAY_CHECK() {
     # Check array for empty values
     # EXITCODE=1 if at least one of variable is empty in the check list 
     if [ ${#ARRAYOFTEST[*]} = 0 ]; then
-        echo -e "\e[31m\tArray of test is empty\e[0m"
+        echo -e "\e[31m\n\tArray of test is empty\e[0m\n"
         EXITCODE=1
     else
-        echo -e "\e[32m\tArray of test contains items\e[36m ${#ARRAYOFTEST[*]} \e[0m"
+        echo -e "\e[32m\n\tArray of test contains items\e[36m ${#ARRAYOFTEST[*]} \e[0m\n"
     fi
 }
 
 function FN_DECORATE {
     # Print "-" character 40 times
-    echo -e "\n"
+    # echo -e "\n"
     for i in {1..40}; do
         echo -n "-"
     done
@@ -81,29 +83,24 @@ function FN_CREATE_FILES {
 }
 
 function FN_MOUNT_DISK {
-    if (cat /proc/mounts | grep ${DISK_PATH}); then
-        if [ ${VERBOSE} = true ]; then
-            echo -e "\e[31m\tDevice \e[36m ${DISK_PATH} \e[31m already mounted\e[0m"
-            echo -e "\e[32m\tUn mounting a\e[36m ${DISK_PATH} \e[0m"
-        fi
-        umount ${DISK_PATH}
+    if $(mountpoint -q ${MOUNT_PATH}); then
+        echo -e "\e[31m\tDevice \e[36m ${DISK_PATH} \e[31m already mounted\e[0m"
+        echo -e "\e[32m\tUn mount a\e[36m ${DISK_PATH} \e[0m"
+        umount ${MOUNT_PATH}
     fi
-    if [ ${VERBOSE} = true ]; then
-        echo -e "\e[32m\tMounting disk\e[36m ${DISK_PATH} \e[32mto\e[36m ${MOUNT_PATH}\e[0m"
-    fi
+    FN_MKDIR
+    FN_WIPE_DISK
+    FN_CREATE_FS_EXT4
+    echo -e "\e[32m\tMount disk\e[36m ${DISK_PATH} \e[32mto\e[36m ${MOUNT_PATH}\e[0m"
     mount ${DISK_PATH} ${MOUNT_PATH}
-    if [ ${VERBOSE} = true ]; then
-        df -i ${MOUNT_PATH}
-    fi
 }
 
 function FN_CREATE_FS_EXT4 {
     if [ ${VERBOSE} = true ]; then
         echo -e "\e[32m\tCreating filesystem\e[36m ext4 \e[32mwith\e[36m ${INODES_NUM} \e[32minodes\e[0m"
-        mkfs -t ext4 -N ${INODES_NUM} ${DISK_PATH}
-        echo -e "\e[32m\tFilesystem has been created\e[0m"
+        mkfs -q -t ext4 -N ${INODES_NUM} ${DISK_PATH}
     else
-        mkfs -t ext4 -N ${INODES_NUM} ${DISK_PATH} > /dev/null 2>&1
+        mkfs -q -t ext4 -N ${INODES_NUM} ${DISK_PATH}
     fi
 }
 
@@ -111,64 +108,71 @@ function FN_WIPE_DISK {
     if [ ${VERBOSE} = true ]; then
         echo -e "\e[32m\tWipe\e[36m ${DISK_PATH} \e[32mwith zeros... \e[0m"
         dd if=/dev/zero of=${DISK_PATH} bs=$((1024*1024)) count=$((${DISK_SIZE}/$((1024*1024)))) status=progress
-        echo -e "\e[32m\tWiping complete\e[0m"
+        echo -e "\e[32m\tWipe completed\e[0m"
     else
-        dd if=/dev/zero of=${DISK_PATH} bs=$((1024*1024)) count=$((${DISK_SIZE}/$((1024*1024)))) > /dev/null 2>&1
+        dd if=/dev/zero of=${DISK_PATH} bs=$((1024*1024)) count=$((${DISK_SIZE}/$((1024*1024)))) &>/dev/null
     fi
 }
 
 function FN_MKDIR {
     if [ -d ${MOUNT_PATH}/ ]; then
-        if (cat /proc/mounts | grep ${DISK_PATH}); then
-            if [ ${VERBOSE} = true ]; then
-                echo -e "\e[31m\tDevice \e[36m ${DISK_PATH} \e[31m already mounted\e[0m"
-                echo -e "\e[32m\tUn mounting a\e[36m ${DISK_PATH} \e[0m"
-            fi
-            umount ${DISK_PATH}
-        fi
         if [ ${VERBOSE} = true ]; then
-            echo -e "\e[32m\tDeleting directory\e[36m $MOUNT_PATH \e[0m"
+            echo -e "\e[32m\tDelete directory\e[36m $MOUNT_PATH \e[0m"
         fi
         rm -rf $MOUNT_PATH/
     fi
     if [ ${VERBOSE} = true ]; then
-        echo -e "\e[32m\tCreating directory\e[36m ${MOUNT_PATH}\e[0m"
+        echo -e "\e[32m\tCreate directory\e[36m ${MOUNT_PATH}\e[0m"
     fi
     mkdir -p ${MOUNT_PATH}
-    if [ ${VERBOSE} = true ]; then
-        ls -la /test/ | head -n 5
-    fi
 }
 
-function FN_PREPS_FN {
-    # Prepare directory
-    FN_MKDIR
-    if [ ${VERBOSE} = true ]; then FN_DECORATE; fi
-
-    # Wipe disk
-    FN_WIPE_DISK
-    if [ ${VERBOSE} = true ]; then FN_DECORATE; fi
-
-    # Prepare filesystem for test
-    FN_CREATE_FS_EXT4
-    if [ ${VERBOSE} = true ]; then FN_DECORATE; fi
-
-    # Mount disk
-    FN_MOUNT_DISK
-    if [ ${VERBOSE} = true ]; then FN_DECORATE; fi
-
-    # Create many files
-    FN_CREATE_FILES
-    if [ ${VERBOSE} = true ]; then FN_DECORATE; fi
+# Function for tests
+function test_rm1 {
+    rm -rf ${MOUNT_PATH}/
 }
+
+function test_rm2 {
+    rm -rf ${MOUNT_PATH}/*
+}
+
+function test_find1 {
+    find ${MOUNT_PATH}/ -type f -exec rm -v {} \;
+}
+
+function test_find2 {
+    find ${MOUNT_PATH}/ -type f -delete
+}
+
+function test_xarg {
+    cd ${MOUNT_PATH}/
+    ls -f . | xargs -n 100 rm
+}
+
+function test_rsync {
+    mkdir -p ${TEMPDIR}/
+    rsync -a --delete ${TEMPDIR}/ ${MOUNT_PATH}/
+    rm -rf ${TEMPDIR}
+}
+
+function test_ls1 {
+    ls ${MOUNT_PATH} | wc -l
+}
+
+function test_ls2 {
+    ls -f ${MOUNT_PATH} | wc -l
+}
+
 
 echo -e "\n\n\n\tVariable check:"
 FN_DECORATE
+# Only show check results
 FN_VARS_CHECK | column -t
-FN_VARS_CHECK &> /dev/null
+# Run and return EXITCODE
+FN_VARS_CHECK &>/dev/null
 FN_ARRAY_CHECK
 
-# If FN_VARS_CHECK generate $EXITCODE = 1, exit 1
+# If FN_VARS_CHECK or FN_ARRAY_CHECK generate $EXITCODE = 1, exit 1
 if [ $EXITCODE = 1 ]; then
     echo -e "\nError\nVariable is empty\n"
     exit 1
@@ -177,25 +181,19 @@ fi
 # ----------------------------------------
 # Run tests
 for array in ${!ARRAYOFTEST[@]}; do
-    if [ ${VERBOSE} = true ]; then
-        FN_DECORATE
-        FN_PREPS_FN
-    else
-        FN_PREPS_FN > /dev/null 2>&1
-    fi
+    FN_DECORATE
+    echo -e "\e[30;42m\n\t Test $((${array}+1)) of ${#ARRAYOFTEST[*]} - Function: ${ARRAYOFTEST[${array}]} \e[0m\n"
+    FN_MOUNT_DISK
+    FN_CREATE_FILES
     sh -c 'sync && echo 2 > /proc/sys/vm/drop_caches'
-    echo -e "\e[30;42m\n\t Test = ${array} of ${#ARRAYOFTEST[*]} \e[0m"
-    echo -e "\e[33m\tExecution time for command:\e[36m ${ARRAYOFTEST[${array}]} \e[0m"
-    
-    if [ ${VERBOSE} = true ]; then
-        time "${ARRAYOFTEST[${array}]}"
-        df -i ${MOUNT_PATH}
-    else
-        time "#${ARRAYOFTEST[${array}]}" > /dev/null 2>&1
-    fi
+    echo -e "\e[33m\tExecution time for function:\e[36m ${ARRAYOFTEST[${array}]} \e[0m"
+    time eval ${ARRAYOFTEST[${array}]} &>/dev/null
+    echo -e "\n\e[33m\tAfter execution dir\e[36m ${MOUNT_PATH} \e[33mcontain:\e[0m\n"
+    df -i ${MOUNT_PATH}
+    echo -e "\n\n"
 done
 
 FN_DECORATE
-echo -e "\e[31m\n\tAll tests complete\e[0m"
+echo -e "\e[32m\n\tAll tests complete\e[0m"
 
 exit 0
